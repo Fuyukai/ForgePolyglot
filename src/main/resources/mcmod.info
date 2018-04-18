@@ -1,0 +1,18 @@
+[
+  {
+    "modid": "forgepolyglot",
+    "name": "ForgePolyglot",
+    "description": "GraalVM Polyglot suport",
+    "version": "${version}",
+    "mcversion": "${mcversion}",
+    "url": "https://github.com/Fuyukai/ForgePolyglot",
+    "updateUrl": "",
+    "authorList": [
+      "Fuyukai"
+    ],
+    "credits": "",
+    "logoFile": "",
+    "screenshots": [],
+    "dependencies": [""]
+  }
+]
