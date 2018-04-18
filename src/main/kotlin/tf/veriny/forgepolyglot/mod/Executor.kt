@@ -18,10 +18,26 @@ package tf.veriny.forgepolyglot.mod
 
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.Engine
+import org.graalvm.polyglot.Value
 import tf.veriny.forgepolyglot.util.Logging
 import java.io.File
 import java.io.FileInputStream
 import java.util.*
+
+/*
+ * Some notes:
+ *
+ *  1) The polymod.properties is used to define the language type, since the ModMetadata object
+ *     has absolutely no ability to store extra information, so we use the language type to
+ *     get mod information, then provide the metadata anyway.
+ *
+ *  2) This class is basically the mod barrier - it provides the way for FML to get into the
+ *     underlying mod. It is technically an executor, too, hence the name.
+ *
+ *  3) As far as I can tell, we cannot fix FML to let us do our own discovery - allowing us to
+ *     inject the mods at the proper stage. So, instead, we have to inject the mods when
+ *     ForgePolygot is constructed, which is a bit late.
+ */
 
 /**
  * Represents an mod for a Polyglot mod.
@@ -44,21 +60,24 @@ class Executor(val modDirectory: File) {
         .allowCreateThread(false).allowHostAccess(true)
         .build()!!
 
-    lateinit var language: String
+    var properties: Properties
+    // property getters
+    val language: String
+        get() = this.properties.getProperty("language")
 
-    /**
-     * Loads the mod into a ModContainer.
-     */
-    fun load() {
+    // the actual mod object
+    private val _wrappedModObject: Value
+
+    init {
         val modInfoPath = this.modDirectory.absolutePath + "/polymod.properties"
-        val props = Properties()
-        props.load(FileInputStream(modInfoPath))
+        // load in properties
+        this.properties = Properties()
+        this.properties.load(FileInputStream(modInfoPath))
 
-        this.language = props.getProperty("language")
         assert(language in languageMapping, { "language is not supported" })
         val ext = languageMapping[this.language]
 
-        val mainFile = props.getProperty("main_file", "mod.$ext")
+        val mainFile = this.properties.getProperty("main-file", "mod.$ext")
         // attempt to load the main file and execute it
         val path = this.modDirectory.absolutePath + "/$mainFile"
         Logging.info { "Attempting to load polyglot mod $path" }
@@ -67,7 +86,29 @@ class Executor(val modDirectory: File) {
         this.context.eval(this.language, file.readText(charset = Charsets.UTF_8))
         // now we try and get main
         Logging.info { "Loading succeeded, trying to get the main function..." }
-        val main = this.context.polyglotBindings.getMember("main")
+        val mainCallable = this.properties.getProperty("main-object", "main")
+        val main = this.context.polyglotBindings.getMember(mainCallable)
+        // call main to get our object
+        if (!main.canExecute()) {
+            throw RuntimeException("Got non-callable main! Cannot construct mod.")
+        }
+        this._wrappedModObject = main.execute()
+    }
 
+    // THE BARRIER
+    // This is the guardian between the mod code and everybody else.
+
+    /**
+     * Executes a function on the wrapped mod object.
+     *
+     * @param name: The name of the function to execute.
+     * @return The return Value of the function.
+     */
+    fun executeFunction(name: String, vararg args: Any?): Value {
+        val executable = this._wrappedModObject.getMember(name)
+        if (!executable.canExecute()) {
+            throw RuntimeException("This is not a function")
+        }
+        return executable.execute(*args)
     }
 }
