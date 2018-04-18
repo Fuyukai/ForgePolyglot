@@ -16,9 +16,29 @@
  */
 package tf.veriny.forgepolyglot.mod
 
-/**
- *
- */
-class PolyModWrapper(executor: Executor) {
+import net.minecraftforge.fml.common.event.FMLInitializationEvent
+import net.minecraftforge.fml.common.event.FMLPostInitializationEvent
+import net.minecraftforge.fml.common.event.FMLPreInitializationEvent
+import org.apache.logging.log4j.LogManager
 
+/**
+ * Wraps a polymod.
+ */
+class PolyModWrapper(val executor: Executor) {
+    val logger = LogManager.getLogger("PolyMod-${this.executor.modId}")
+
+    fun preInit(event: FMLPreInitializationEvent) {
+        this.logger.info("Delegating PreInit...")
+        this.executor.maybeExecuteFunction("pre_init", event)
+    }
+
+    fun init(event: FMLInitializationEvent) {
+        this.logger.info("Delegating Init...")
+        this.executor.maybeExecuteFunction("init", event)
+    }
+
+    fun postInit(event: FMLPostInitializationEvent) {
+        this.logger.info("Delegating postInit...")
+        this.executor.maybeExecuteFunction("post_init", event)
+    }
 }

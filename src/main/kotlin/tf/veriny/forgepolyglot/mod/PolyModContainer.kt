@@ -17,11 +17,15 @@
 package tf.veriny.forgepolyglot.mod
 
 import com.google.common.eventbus.EventBus
+import com.google.common.eventbus.Subscribe
 import net.minecraftforge.fml.common.LoadController
 import net.minecraftforge.fml.common.MetadataCollection
 import net.minecraftforge.fml.common.ModContainer
 import net.minecraftforge.fml.common.ModMetadata
 import net.minecraftforge.fml.common.event.FMLEvent
+import net.minecraftforge.fml.common.event.FMLInitializationEvent
+import net.minecraftforge.fml.common.event.FMLPostInitializationEvent
+import net.minecraftforge.fml.common.event.FMLPreInitializationEvent
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import net.minecraftforge.fml.common.versioning.ArtifactVersion
 import net.minecraftforge.fml.common.versioning.DefaultArtifactVersion
@@ -207,11 +211,23 @@ class PolyModContainer(val meta: ModMetadata, val executor: Executor) : ModConta
     }
 
     // non-boilerplate
-    @SubscribeEvent
+    @Subscribe
     fun redispatchEvents(event: FMLEvent) {
         val typ = event.eventType
-        // todo: properly rewrite events
+        try {
+            val meth = when (event) {
+                is FMLPreInitializationEvent -> this.mod::preInit
+                is FMLInitializationEvent -> this.mod::init
+                is FMLPostInitializationEvent -> this.mod::postInit
+                else -> throw RuntimeException("Fuck")
+            }
+            meth.invoke(event)
+        } catch (e: RuntimeException) {}
 
+    }
+
+    public override fun toString(): String {
+        return "PolyMod: ${this.modId}"
     }
 
 }
