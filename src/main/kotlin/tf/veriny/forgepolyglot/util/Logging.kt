@@ -16,13 +16,14 @@
  */
 package tf.veriny.forgepolyglot.util
 
+import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 
 /**
  * Helper for logging. This will only log if said log levels are enabled.
  */
 object Logging {
-    lateinit var logger: Logger
+    val logger: Logger = LogManager.getLogger("ForgePolyglot")
 
     /**
      * Logs an info message.

@@ -16,11 +16,14 @@
  */
 package tf.veriny.forgepolyglot
 
-import net.minecraftforge.fml.common.FMLCommonHandler
+import com.google.common.collect.ImmutableList
+import com.google.common.collect.Maps
+import net.minecraftforge.fml.common.LoadController
+import net.minecraftforge.fml.common.Loader
 import net.minecraftforge.fml.common.Mod
 import net.minecraftforge.fml.common.ModContainer
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent
-import tf.veriny.forgepolyglot.mod.Executor
+import net.minecraftforge.fml.common.event.FMLLoadEvent
+import tf.veriny.forgepolyglot.mod.PolyModLoader
 import tf.veriny.forgepolyglot.util.Logging
 import java.io.File
 
@@ -32,50 +35,68 @@ import java.io.File
     dependencies = "required-after:forgelin"
 )
 object ForgePolyglot {
-    var active: Boolean = false
-    val mods = mapOf<String, ModContainer>()
-
     init {
         // ensure we are running on GraalVM
         val prop = System.getProperty("java.vm.name")
         if (!prop.startsWith("GraalVM")) {
             System.err.println("Loaded on JVM $prop - not a GraalVM! To use ForgePolyglot, " +
                 "you must load on GraalVM.")
+
         } else {
-            this.hijackFML()
+            // fuck with FML
+            this.load()
         }
     }
 
     /**
-     * Hijacks FML, installing our own mod containers.
+     * Called to load this mod, and load Polymods.
      */
-    @JvmStatic fun hijackFML() {
+    fun load() {
+        // todo: open an issue allowing us to directly meddle with fml mods more easily
 
-    }
 
-    // this is basically a modloader inside a modloader
-    // throwback to 1.2.5
-    @Mod.EventHandler
-    fun preInit(event: FMLPreInitializationEvent) {
-        // don't work if we don't have GraalVM to use
-        if (!this.active) {
-            return
+        val loader = Loader.instance()
+        val modsField = loader::class.java.getDeclaredField("mods")
+        Logging.info { "Meddling with FML to let us edit mods..." }
+        // allow us to meddle with mods
+        modsField.isAccessible = true
+        // make it mutable
+        val old = modsField.get(loader) as List<ModContainer>
+        val mods = mutableListOf<ModContainer>()
+        mods.addAll(old)
+
+        // scan for our mods
+        // question: how to get the mods directory?
+        // answer:
+        val polyModPath = File(loader.configDir.parentFile.absolutePath + "/mods/polymods")
+
+        // make the mod path, if it doesn't exist
+        if (!polyModPath.exists()) polyModPath.mkdir()
+
+        for (file in polyModPath.listFiles()) {
+            // ignore files, we need directories
+            if (!file.isDirectory) continue
+            PolyModLoader.loadMod(mods, file)
         }
+        // unfuck mod list
+        Logging.info { "Meddling with FML to fix mods..." }
+        modsField.set(loader, mods.toMutableList())
+        // unfuck namedMods
+        Logging.info { "Meddling with FML to fix named mods..." }
+        val namedModsF = loader::class.java.getDeclaredField("namedMods")
+        namedModsF.isAccessible = true
+        namedModsF.set(loader, Maps.uniqueIndex(mods, { it: ModContainer? -> it?.name }))
+        // unwrap modController
+        Logging.info { "Meddling with FML to update active mods..." }
+        val modControllerF = loader::class.java.getDeclaredField("modController")
+        modControllerF.isAccessible = true
+        val modController = modControllerF.get(loader) as LoadController
+        modController.buildModList(FMLLoadEvent())
 
-        Logging.logger = event.modLog
-
-        val rootPath = event.modConfigurationDirectory.parentFile.absolutePath
-        val polyglotPath = "$rootPath/mods/polyglot"
-        val polyglotDir = File(polyglotPath)
-        event.modLog.info("Loading Polyglot mods from $polyglotPath")
-
-        for (file in polyglotDir.listFiles()) {
-            if (!file.isDirectory) {
-                Logging.warning { "Got non-directory file ${file.name} in mod directory, ignoring" }
-                continue
-            }
-            val executor = Executor(file)
-            executor.load()
-        }
+        Logging.info { "Meddling with FML to fix mods for the last time..." }
+        val sortMeth = loader::class.java.getDeclaredMethod("sortModList")
+        sortMeth.isAccessible = true
+        sortMeth.invoke(loader)
+        modsField.set(loader, ImmutableList.copyOf(modsField.get(loader) as List<ModContainer>))
     }
 }

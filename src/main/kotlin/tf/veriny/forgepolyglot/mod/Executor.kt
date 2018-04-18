@@ -64,6 +64,8 @@ class Executor(val modDirectory: File) {
     // property getters
     val language: String
         get() = this.properties.getProperty("language")
+    val modId: String
+        get() = this.properties.getProperty("modid")
 
     // the actual mod object
     private val _wrappedModObject: Value
@@ -80,23 +82,39 @@ class Executor(val modDirectory: File) {
         val mainFile = this.properties.getProperty("main-file", "mod.$ext")
         // attempt to load the main file and execute it
         val path = this.modDirectory.absolutePath + "/$mainFile"
-        Logging.info { "Attempting to load polyglot mod $path" }
+        Logging.info { "Attempting to load polymod $path" }
 
         val file = File(path)
         this.context.eval(this.language, file.readText(charset = Charsets.UTF_8))
         // now we try and get main
         Logging.info { "Loading succeeded, trying to get the main function..." }
         val mainCallable = this.properties.getProperty("main-object", "main")
-        val main = this.context.polyglotBindings.getMember(mainCallable)
+        val binding = this.context.getBindings(language)
+        if (!binding.hasMember(mainCallable)) {
+            throw RuntimeException("Missing main `$mainCallable` in polymod! Cannot construct mod.")
+        }
+
+        val main = binding.getMember(mainCallable)
         // call main to get our object
-        if (!main.canExecute()) {
+        if (main == null || !main.canExecute()) {
             throw RuntimeException("Got non-callable main! Cannot construct mod.")
         }
         this._wrappedModObject = main.execute()
+        Logging.info { "Loaded Polymod successfully." }
     }
 
     // THE BARRIER
     // This is the guardian between the mod code and everybody else.
+
+    /**
+     * Executes a function on the wrapped mod object only if it has the function in its globals.
+     */
+    fun maybeExecuteFunction(name: String, vararg args: Any?): Value? {
+        if (this._wrappedModObject.hasMember(name)) {
+            return this.executeFunction(name, *args)
+        }
+        return null
+    }
 
     /**
      * Executes a function on the wrapped mod object.
