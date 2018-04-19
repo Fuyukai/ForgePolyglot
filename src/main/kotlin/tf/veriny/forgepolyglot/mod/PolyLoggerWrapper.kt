@@ -53,12 +53,12 @@ class PolyLoggerWrapper(val modId: String, val mode: String) : OutputStream() {
     // never call this
     override fun write(b: Int) {
         val char = b.toByte().toChar().toString()
-        this.loggerDelegate(char)
+        this.doLog(char)
     }
 
     override fun write(b: ByteArray) {
         val str = String(b)
-        this.loggerDelegate(str)
+        this.doLog(str)
     }
 
     override fun write(b: ByteArray, off: Int, len: Int) {
