@@ -30,6 +30,7 @@ class PolyModWrapper(val executor: Executor) {
     fun preInit(event: FMLPreInitializationEvent) {
         this.logger.info("Delegating PreInit...")
         this.executor.maybeExecuteFunction("pre_init", event)
+
     }
 
     fun init(event: FMLInitializationEvent) {

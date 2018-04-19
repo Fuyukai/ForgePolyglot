@@ -19,6 +19,7 @@ package tf.veriny.forgepolyglot.mod
 import org.graalvm.polyglot.Context
 import org.graalvm.polyglot.Engine
 import org.graalvm.polyglot.Value
+import tf.veriny.forgepolyglot.barrier.Exporter
 import tf.veriny.forgepolyglot.util.Logging
 import java.io.File
 import java.io.FileInputStream
@@ -91,6 +92,8 @@ class Executor(val modDirectory: File) {
 
         val file = File(path)
         this.context.eval(this.language, file.readText(charset = Charsets.UTF_8))
+        // load global symbols
+        Exporter.exportSymbols(this.context)
         // now we try and get main
         Logging.info { "Loading succeeded, trying to get the main function..." }
         val mainCallable = this.properties.getProperty("main-object", "main")
@@ -121,10 +124,12 @@ class Executor(val modDirectory: File) {
      * Executes a function on the wrapped mod object only if it has the function in its globals.
      */
     fun maybeExecuteFunction(name: String, vararg args: Any?): Value? {
-        if (this._wrappedModObject.hasMember(name)) {
-            return this.executeFunction(name, *args)
+        // hasMember calls blatantly lie
+        val member = this._wrappedModObject.getMember(name)
+        if (member.isNull) {
+            return null
         }
-        return null
+        return member.execute(*args)
     }
 
     /**
