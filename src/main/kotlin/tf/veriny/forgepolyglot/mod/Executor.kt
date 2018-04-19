@@ -22,6 +22,7 @@ import org.graalvm.polyglot.Value
 import tf.veriny.forgepolyglot.util.Logging
 import java.io.File
 import java.io.FileInputStream
+import java.io.PrintStream
 import java.util.*
 
 /*
@@ -53,12 +54,7 @@ class Executor(val modDirectory: File) {
         )
     }
 
-    // the context is made from the current engine, meaning that it's a bit faster
-    // as it shares some ast stuff etc
-    private val context = Context.newBuilder().engine(engine)
-        // change some options
-        .allowCreateThread(false).allowHostAccess(true)
-        .build()!!
+    private val context: Context
 
     var properties: Properties
     // property getters
@@ -75,6 +71,15 @@ class Executor(val modDirectory: File) {
         // load in properties
         this.properties = Properties()
         this.properties.load(FileInputStream(modInfoPath))
+
+        Logging.info { "Configuring GraalVM executor for modId ${this.modId}" }
+        val soutWrapper = PolyLoggerWrapper(this.modId, "stdout")
+        val serrWrapper = PolyLoggerWrapper(this.modId, "stderr")
+
+        this.context = Context.newBuilder("js", "python")
+            .allowCreateThread(false).allowHostAccess(false).engine(Executor.engine)
+            .out(PrintStream(soutWrapper)).err(PrintStream(serrWrapper)).build()
+
 
         assert(language in languageMapping, { "language is not supported" })
         val ext = languageMapping[this.language]
@@ -99,7 +104,13 @@ class Executor(val modDirectory: File) {
         if (main == null || !main.canExecute()) {
             throw RuntimeException("Got non-callable main! Cannot construct mod.")
         }
-        this._wrappedModObject = main.execute()
+        val _modObject = main.execute()
+        if (_modObject.isNull) {
+            throw RuntimeException("Got null return from main! Your main must return an object!")
+        }
+
+        this._wrappedModObject = _modObject
+
         Logging.info { "Loaded Polymod successfully." }
     }
 
