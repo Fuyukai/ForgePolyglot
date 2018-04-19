@@ -34,10 +34,10 @@ class PolyLoggerWrapper(val modId: String, val mode: String) : OutputStream() {
     init {
         val loggerName = "PolyMod-$modId-$mode"
         this.logger = LogManager.getLogger(loggerName)
-        when (mode) {
-            "stdout" -> this.loggerDelegate = this.logger::info
-            "stderr" -> this.loggerDelegate = this.logger::error
-            else -> this.loggerDelegate = this.logger::warn
+        this.loggerDelegate = when (mode) {
+            "stdout" -> this.logger::info
+            "stderr" -> this.logger::error
+            else -> this.logger::warn
         }
     }
 
