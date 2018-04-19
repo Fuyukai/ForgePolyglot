@@ -67,7 +67,8 @@ class PolyModContainer(val meta: ModMetadata, val executor: Executor) : ModConta
         return this.meta.version
     }
 
-    override fun getUpdateUrl(): URL {
+    override fun getUpdateUrl(): URL? {
+        if (this.meta.updateJSON == "") return null
         return URL(this.meta.updateJSON)
     }
 
